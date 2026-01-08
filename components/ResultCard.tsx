@@ -57,8 +57,8 @@ export const ResultCard: React.FC<ResultCardProps> = ({ title, content, type, ac
         )}
       </div>
 
-      {/* Tricolor Strip - Reduced height to h-1.5 */}
-      <div className="h-1.5 w-full tricolor-strip"></div>
+      {/* Tricolor Strip - Reduced height to h-1 */}
+      <div className="h-1 w-full tricolor-strip"></div>
     </div>
   );
 };

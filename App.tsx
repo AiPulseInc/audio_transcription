@@ -136,9 +136,9 @@ const App: React.FC = () => {
         {file && !result && (
           <div className="max-w-2xl mx-auto mt-10">
             <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-2xl relative overflow-hidden">
-               {/* Progress Bar Strip - Reduced Height */}
+               {/* Progress Bar Strip - Reduced Height to h-1 */}
                {processingState.status === 'transcribing' && (
-                <div className="absolute top-0 left-0 h-1.5 tricolor-strip animate-pulse w-full"></div>
+                <div className="absolute top-0 left-0 h-1 tricolor-strip animate-pulse w-full"></div>
               )}
               
               <div className="flex items-start justify-between mb-8">
@@ -233,9 +233,9 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Footer - Redesigned: Reduced height, new text */}
+      {/* Footer - Redesigned: Reduced height, new text, h-1 strip */}
       <footer className="bg-brand-navy relative pt-6 pb-6">
-         <div className="absolute top-0 left-0 w-full h-1.5 tricolor-strip"></div>
+         <div className="absolute top-0 left-0 w-full h-1 tricolor-strip"></div>
          <div className="max-w-7xl mx-auto px-4 flex flex-col items-center">
             <p className="text-slate-400 text-sm font-medium">@2026 Tech Lab v.96</p>
          </div>
@@ -281,7 +281,7 @@ const TabbedResultView: React.FC<{result: TranscriptResult}> = ({result}) => {
             content={activeTab === 'polished' ? result.polished_version : result.raw_transcript} 
           />
        </div>
-       <div className="h-1.5 w-full tricolor-strip"></div>
+       <div className="h-1 w-full tricolor-strip"></div>
     </div>
   );
 };

@@ -57,20 +57,75 @@ export const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect, onUrlSelec
     setFetchError(null);
     if (!urlInput) return;
 
+    let targetUrl = urlInput;
+    let isDriveLink = false;
+
+    // Smart Link Conversion: Google Drive
+    // Matches /d/ID, id=ID, or open?id=ID
+    const driveRegex = /(?:\/d\/|id=|open\?id=)([-\w]{25,})/;
+    const driveMatch = urlInput.match(driveRegex);
+    
+    if (urlInput.includes('drive.google.com') && driveMatch && driveMatch[1]) {
+      targetUrl = `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+      isDriveLink = true;
+      console.log("Converted Google Drive link to:", targetUrl);
+    }
+
     try {
-        const response = await fetch(urlInput);
-        if (!response.ok) throw new Error('Network response was not ok');
+        const response = await fetch(targetUrl);
+        if (!response.ok) throw new Error(`Network response was not ok (${response.status})`);
+        
+        // Check if we got HTML instead of a file (common with Drive view links or error pages)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+            if (isDriveLink) {
+                 throw new Error("Google Drive returned a web page instead of the audio file. This often happens if the file is restricted or too large (virus scan warning).");
+            } else {
+                 throw new Error("The URL returned a web page instead of a media file.");
+            }
+        }
+
         const blob = await response.blob();
+        
+        // Try to get filename from Content-Disposition header if available
+        let filename = "downloaded_media";
+        const disposition = response.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('attachment') !== -1) {
+             const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+             const matches = filenameRegex.exec(disposition);
+             if (matches != null && matches[1]) { 
+               filename = matches[1].replace(/['"]/g, '');
+             }
+        } else if (isDriveLink) {
+            filename = "google_drive_file";
+        }
+        
+        // Determine type, default to audio/mp3 if generic
+        const type = blob.type || 'audio/mp3';
+
         // Create a File object from Blob
-        const file = new File([blob], "downloaded_media", { type: blob.type || 'audio/mp3' });
+        const file = new File([blob], filename, { type });
         
-        if (file.size === 0) throw new Error("Empty file");
+        if (file.size === 0) throw new Error("Empty file received");
         
-        onUrlSelect(file); // Treat it as a file upload
-    } catch (error) {
+        onUrlSelect(file); 
+    } catch (error: any) {
         console.error("Fetch failed", error);
         setShowManualGuide(true);
-        setFetchError("Could not fetch automatically. This is likely due to CORS restrictions (e.g. YouTube, Drive).");
+        
+        let errorMsg = error.message || "Could not fetch automatically.";
+        
+        if (errorMsg.includes('Network response') || errorMsg.includes('Failed to fetch')) {
+             if (urlInput.includes('drive.google.com')) {
+                errorMsg = "Google Drive blocked the direct download (CORS). This is a browser security restriction. Please download the file to your computer, then use the 'Upload File' tab.";
+            } else if (urlInput.includes('youtube.com') || urlInput.includes('youtu.be')) {
+                errorMsg = "YouTube does not allow direct raw video downloading via browser fetch. Please use a local file.";
+            } else {
+                errorMsg = "Could not download the file due to browser security restrictions (CORS). Please download it manually and upload it here.";
+            }
+        }
+
+        setFetchError(errorMsg);
     }
   };
 
@@ -138,16 +193,20 @@ export const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect, onUrlSelec
           <div className="flex flex-col items-center justify-center w-full h-64">
              {/* Fetch Manual Guide Modal */}
              {showManualGuide && (
-                <div className="absolute inset-0 bg-white/95 z-20 flex flex-col items-center justify-center p-8 text-center rounded-lg">
+                <div className="absolute inset-0 bg-white/95 z-20 flex flex-col items-center justify-center p-8 text-center rounded-lg animate-in fade-in duration-200">
                      <AlertTriangle className="w-12 h-12 text-brand-yellow mb-4" />
-                     <h4 className="text-xl font-bold text-brand-navy mb-2">Auto-Fetch Failed</h4>
-                     <p className="text-slate-600 mb-6 max-w-md">
-                        {fetchError} <br/>
-                        Please download the file to your device, then use the <strong>Upload File</strong> tab.
+                     <h4 className="text-xl font-bold text-brand-navy mb-2">Connection Issue</h4>
+                     <p className="text-slate-600 mb-6 max-w-md text-sm">
+                        {fetchError}
                      </p>
-                     <Button variant="outline" onClick={() => setShowManualGuide(false)}>
-                        Okay, I understand
-                     </Button>
+                     <div className="flex gap-2">
+                       <Button variant="outline" size="sm" onClick={() => setShowManualGuide(false)}>
+                          Try Another Link
+                       </Button>
+                       <Button variant="primary" size="sm" onClick={() => {setShowManualGuide(false); setActiveTab('upload');}}>
+                          Switch to Upload
+                       </Button>
+                     </div>
                 </div>
              )}
 
@@ -164,7 +223,7 @@ export const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect, onUrlSelec
                     <input
                       id="url-input"
                       type="url"
-                      placeholder="https://example.com/audio.mp3"
+                      placeholder="https://drive.google.com/file/d/..."
                       className="block w-full pl-10 pr-3 py-3 bg-slate-50 border-2 border-slate-300 rounded-lg focus:ring-brand-yellow focus:border-brand-navy text-brand-navy placeholder-slate-400 transition-colors"
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
